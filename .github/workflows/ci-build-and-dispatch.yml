@@ -1,0 +1,70 @@
+# .github/workflows/ci-build-and-dispatch.yml
+
+name: CI - Build and Push Docker Image
+
+# 触发条件：当推送到 main 分支或创建 v* 格式的 tag 时
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ 'v*.*.*' ]
+
+# 环境变量
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: jenkins-cicd-example # 格式为：your-username/your-repo-name
+
+jobs:
+  build-push-and-dispatch:
+    runs-on: ubuntu-latest
+    # 设置工作流权限，允许写入 GitHub Packages (镜像仓库)
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      # 1. 检出代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. 登录到 GitHub Container Registry (GHCR)
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }} # GITHUB_TOKEN 是由 Actions 自动生成的
+
+      # 3. 动态提取 Docker 镜像的元数据（标签和名称）
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # 从 Git 的 tag 和 branch 中生成 Docker 标签
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      # 4. 构建并推送 Docker 镜像
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      # 5. 远程触发 Jenkins CD 作业
+      - name: Trigger Jenkins CD Job
+        run: |
+          # 从上一步的输出中获取第一个生成的 Docker 标签
+          IMAGE_TAG=$(echo "${{ steps.meta.outputs.tags }}" | cut -d ',' -f 1 | sed 's#ghcr.io/${{ env.IMAGE_NAME }}:##')
+          echo "Generated Docker tag is: $IMAGE_TAG"
+          
+          # 发送 curl 请求来触发 Jenkins
+          curl -X POST "${{ secrets.JENKINS_URL }}/job/hello-world-cd/buildWithParameters" \
+            --user ${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_API_TOKEN }} \
+            --data token="${{ secrets.JENKINS_CD_JOB_TOKEN }}" \
+            --data IMAGE_TAG="$IMAGE_TAG"

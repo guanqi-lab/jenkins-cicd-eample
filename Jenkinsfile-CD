@@ -1,0 +1,87 @@
+// jenkins/jenkins-cicd/Jenkinsfile-CD
+
+pipeline {
+    // 代理：在 Jenkins 主节点上执行所有操作
+    agent any
+
+    // 参数：定义流水线接收的参数
+    // 这个 IMAGE_TAG 将由 GitHub Actions 在触发时传入
+    parameters {
+        string(name: 'IMAGE_TAG', defaultValue: 'latest', description: '要部署的 Docker 镜像标签')
+    }
+
+    // 环境变量：定义整个流水线中可用的变量，方便管理和修改
+    environment {
+        // GitHub 镜像仓库地址
+        REGISTRY        = 'ghcr.io'
+        // 您的 GitHub 用户名（请修改为您的！）
+        GITHUB_USERNAME = 'guanqi-lab' // <--- 请修改为您的 GitHub 用户名
+        // 镜像的完整名称
+        IMAGE_NAME      = "${REGISTRY}/${GITHUB_USERNAME}/jenkins-cicd-example" // <--- 如果仓库名不同，请修改
+        // 部署后容器的名称，方便管理
+        CONTAINER_NAME  = 'hello-world-go-service'
+    }
+
+    stages {
+        // 部署阶段
+        stage('Deploy Service') {
+            steps {
+                script {
+                    echo "🚀 Starting deployment for image: ${env.IMAGE_NAME}:${params.IMAGE_TAG}"
+
+                    // 使用 'withCredentials' 块安全地加载凭证
+                    // 'github-ghcr-token' 是您在 Jenkins 中存储的 GitHub PAT (Secret text类型)
+                    withCredentials([string(credentialsId: 'github-ghcr-token', variable: 'GHCR_TOKEN')]) {
+                        
+                        // 登录到 GHCR
+                        sh "echo ${GHCR_TOKEN} | docker login ${env.REGISTRY} -u ${env.GITHUB_USERNAME} --password-stdin"
+
+                        echo "✅ Docker login successful."
+
+                        // --- 核心部署逻辑 ---
+
+                        echo "🛑 Stopping and removing old container (if it exists)..."
+                        // 使用 '|| true' 确保在容器不存在时，命令不会失败并中止流水线
+                        sh "docker stop ${env.CONTAINER_NAME} || true"
+                        sh "docker rm ${env.CONTAINER_NAME} || true"
+
+                        echo "🚚 Pulling new Docker image..."
+                        sh "docker pull ${env.IMAGE_NAME}:${params.IMAGE_TAG}"
+
+                        echo "✨ Starting new container..."
+                        sh """
+                        docker run -d \
+                          -p 8080:8080 \
+                          --name ${env.CONTAINER_NAME} \
+                          --restart always \
+                          ${env.IMAGE_NAME}:${params.IMAGE_TAG}
+                        """
+                        
+                        echo "🎉 Deployment successful!"
+                    }
+                }
+            }
+        }
+    }
+
+    // 后处理步骤：无论成功或失败都会执行
+    post {
+        always {
+            script {
+                // 清理 Docker 登录信息
+                sh "docker logout ${env.REGISTRY}"
+                echo "🧹 Docker logout complete."
+                
+                // 清理悬空的 Docker 镜像（可选，但推荐）
+                // 这会删除所有没有被任何容器使用的旧镜像，节省磁盘空间
+                sh "docker image prune -af || true"
+            }
+        }
+        success {
+            echo "✅ Pipeline finished successfully. Application is running at http://<Your-Server-IP>:8080"
+        }
+        failure {
+            echo "❌ Pipeline failed. Please check the logs."
+        }
+    }
+}
