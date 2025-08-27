@@ -46,22 +46,32 @@ pipeline {
 
     post {
         success {
-            emailext ( [3]
-                subject: "SUCCESS: Build for ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: """<p>Build successful. Image <b>${IMAGE_NAME}:${env.IMAGE_TAG}</b> was pushed to GHCR.</p>
-                         <p>View build details here: <a href='${env.BUILD_URL}'>${env.BUILD_URL}</a></p>""",
-                to: 'q42722180@gmail.com',
-                mimeType: 'text/html'
-            )
+            echo 'Build successful. Sending email notification...'
+            // The 'script' block is necessary to run advanced logic like this
+            script {
+                // All parameters MUST be inside the emailext() parentheses
+                emailext(
+                    to: 'your-email@example.com', // <-- IMPORTANT: Change this to your email
+                    subject: "✅ SUCCESS: Build for ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                    body: """<p>Build successful for branch/tag: <b>${env.BRANCH_NAME}</b></p>
+                             <p>Commit: ${GIT_COMMIT}</p>
+                             <p>Pushed Docker image: <b>ghcr.io/${GITHUB_USERNAME.toLowerCase()}/hello-world-go:${IMAGE_TAG}</b></p>
+                             <p>Check console output at <a href="${env.BUILD_URL}">Jenkins Build</a></p>""",
+                    mimeType: 'text/html'
+                )
+            }
         }
         failure {
-            emailext (
-                subject: "FAILURE: Build for ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: """<p>Build FAILED. Please review the logs.</p>
-                         <p>View build details here: <a href='${env.BUILD_URL}'>${env.BUILD_URL}</a></p>""",
-                to: 'your-email@example.com',
-                mimeType: 'text/html'
-            )
+            echo 'Build failed. Sending email notification...'
+            script {
+                emailext(
+                    to: 'your-email@example.com', // <-- IMPORTANT: Change this to your email
+                    subject: "❌ FAILURE: Build for ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                    body: """<p>Build FAILED for branch/tag: <b>${env.BRANCH_NAME}</b></p>
+                             <p>Please check the console output for errors at <a href="${env.BUILD_URL}">Jenkins Build</a></p>""",
+                    mimeType: 'text/html'
+                )
+            }
         }
     }
 }
