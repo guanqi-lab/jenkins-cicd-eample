@@ -20,6 +20,7 @@ jobs:
 
     steps:
       # 1. 检出代码
+      #    --- 这是本次修改的核心部分 ---
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -36,20 +37,13 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # 3. 动态提取 Docker 镜像的元数据（标签和名称）
-      #    --- 这是本次修改的核心部分 ---
       - name: Extract metadata for Docker
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            # 规则1: 当事件是推送一个 Git 标签时 (e.g. "v1.2.3"),
-            # 直接使用这个 Git 标签作为 Docker 标签。
             type=ref,event=tag
-
-            # 规则2: 当事件是推送到一个分支时 (e.g. "main"),
-            # 使用自定义的格式： {日期}.{分支名}.{短commit_id}
-            # priority=200 确保此规则优先于其他默认规则
             type=raw,value={{date 'YYYYMMDD'}}.{{branch}}.{{sha-short}},event=branch,priority=200
 
       # 4. 构建并推送 Docker 镜像
@@ -64,11 +58,9 @@ jobs:
       # 5. 远程触发 Jenkins CD 作业
       - name: Trigger Jenkins CD Job
         run: |
-          # 这个脚本无需修改，它会自动从上一步的输出中获取正确的标签
           IMAGE_TAG=$(echo "${{ steps.meta.outputs.tags }}" | cut -d ',' -f 1 | sed 's#ghcr.io/${{ env.IMAGE_NAME }}:##')
           echo "Generated Docker tag is: $IMAGE_TAG"
           
-          # 发送 curl 请求来触发 Jenkins
           curl -X POST "${{ secrets.JENKINS_URL }}/job/hello-world-cd/buildWithParameters" \
             --user ${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_API_TOKEN }} \
             --data token="${{ secrets.JENKINS_CD_JOB_TOKEN }}" \
