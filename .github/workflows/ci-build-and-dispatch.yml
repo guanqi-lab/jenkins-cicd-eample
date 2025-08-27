@@ -22,6 +22,10 @@ jobs:
       # 1. 检出代码
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # 添加 fetch-depth: 0 来获取完整的 Git 历史记录
+          # 这样才能确保 {{sha-short}} 变量能被正确解析
+          fetch-depth: 0
 
       # 2. 登录到 GitHub Container Registry (GHCR)
       - name: Log in to the Container registry
