@@ -1,0 +1,67 @@
+pipeline {
+    agent any
+
+    environment {
+        // Replace with your GitHub username and repository name
+        GHCR_HOSTNAME = 'ghcr.io'
+        GITHUB_USER = 'guanqi-lab'
+        IMAGE_NAME = "${GITHUB_USER}/jenkins-cicd-example"
+    }
+
+    stages {
+        stage('Determine Image Tag') {
+            steps {
+                script {
+                    def imageTag
+                    if (env.TAG_NAME) {
+                        imageTag = env.TAG_NAME
+                    } else {
+                        def safeBranchName = env.BRANCH_NAME.replaceAll('/', '-')
+                        imageTag = "${safeBranchName}-${env.BUILD_NUMBER}"
+                    }
+                    env.IMAGE_TAG = imageTag
+                    echo "Building with Image Tag: ${env.IMAGE_TAG}"
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    docker.build("${IMAGE_NAME}:${env.IMAGE_TAG}", ".") [1]
+                }
+            }
+        }
+
+        stage('Push to GHCR') {
+            steps {
+                script {
+                    docker.withRegistry("https://${GHCR_HOSTNAME}", 'github-ghcr-token') { [1]
+                        docker.image("${IMAGE_NAME}:${env.IMAGE_TAG}").push()
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            emailext ( [3]
+                subject: "SUCCESS: Build for ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: """<p>Build successful. Image <b>${IMAGE_NAME}:${env.IMAGE_TAG}</b> was pushed to GHCR.</p>
+                         <p>View build details here: <a href='${env.BUILD_URL}'>${env.BUILD_URL}</a></p>""",
+                to: 'q42722180@gmail.com',
+                mimeType: 'text/html'
+            )
+        }
+        failure {
+            emailext (
+                subject: "FAILURE: Build for ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: """<p>Build FAILED. Please review the logs.</p>
+                         <p>View build details here: <a href='${env.BUILD_URL}'>${env.BUILD_URL}</a></p>""",
+                to: 'your-email@example.com',
+                mimeType: 'text/html'
+            )
+        }
+    }
+}
