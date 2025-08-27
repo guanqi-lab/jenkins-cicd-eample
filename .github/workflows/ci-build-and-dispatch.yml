@@ -11,7 +11,7 @@ on:
 # 环境变量
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: jenkins-cicd-example # 格式为：your-username/your-repo-name
+  IMAGE_NAME: guaiqi-lab/jenkins-cicd-example # 格式为：your-username/your-repo-name
 
 jobs:
   build-push-and-dispatch:
