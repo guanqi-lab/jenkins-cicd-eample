@@ -17,7 +17,7 @@ pipeline {
         // 您的 GitHub 用户名（请修改为您的！）
         GITHUB_USERNAME = 'guanqi-lab' // <--- 请修改为您的 GitHub 用户名
         // 镜像的完整名称
-        IMAGE_NAME      = "${REGISTRY}/${GITHUB_USERNAME}/jenkins-cicd-example" // <--- 如果仓库名不同，请修改
+        IMAGE_NAME      = "${REGISTRY}/${GITHUB_USERNAME}/jenkins-cicd-eample" // <--- 如果仓库名不同，请修改
         // 部署后容器的名称，方便管理
         CONTAINER_NAME  = 'hello-world-go-service'
     }

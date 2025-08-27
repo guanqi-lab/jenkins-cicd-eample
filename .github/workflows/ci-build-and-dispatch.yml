@@ -9,7 +9,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: guanqi-lab/jenkins-cicd-example # 格式为：your-username/your-repo-name
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-push-and-dispatch:
@@ -20,12 +20,10 @@ jobs:
 
     steps:
       # 1. 检出代码
-      #    --- 这是本次修改的核心部分 ---
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # 添加 fetch-depth: 0 来获取完整的 Git 历史记录
-          # 这样才能确保 {{sha-short}} 变量能被正确解析
+          # 这一步依然是必要的，确保我们有完整的 Git 历史
           fetch-depth: 0
 
       # 2. 登录到 GitHub Container Registry (GHCR)
@@ -36,7 +34,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 3. 动态提取 Docker 镜像的元数据（标签和名称）
+      # 3. 【新增步骤】手动获取短 Commit ID
+      - name: Get short commit SHA
+        id: vars # 给这个步骤一个ID，方便后面引用
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      # 4. 动态提取 Docker 镜像的元数据
       - name: Extract metadata for Docker
         id: meta
         uses: docker/metadata-action@v5
@@ -44,9 +47,11 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=tag
-            type=raw,value={{date 'YYYYMMDD'}}.{{branch}}.{{sha-short}},event=branch,priority=200
+            # 【修改】不再使用 {{sha-short}}
+            # 直接使用上一步 (id: vars) 的输出 (outputs.sha_short)
+            type=raw,value={{date 'YYYYMMDD'}}.{{branch}}.${{ steps.vars.outputs.sha_short }},event=branch,priority=200
 
-      # 4. 构建并推送 Docker 镜像
+      # 5. 构建并推送 Docker 镜像
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -55,7 +60,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-      # 5. 远程触发 Jenkins CD 作业
+      # 6. 远程触发 Jenkins CD 作业
       - name: Trigger Jenkins CD Job
         run: |
           IMAGE_TAG=$(echo "${{ steps.meta.outputs.tags }}" | cut -d ',' -f 1 | sed 's#ghcr.io/${{ env.IMAGE_NAME }}:##')
