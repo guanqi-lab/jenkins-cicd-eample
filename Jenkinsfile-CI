@@ -51,7 +51,7 @@ pipeline {
             script {
                 // All parameters MUST be inside the emailext() parentheses
                 emailext(
-                    to: 'your-email@example.com', // <-- IMPORTANT: Change this to your email
+                    to: 'q42722180@gmail.com', // <-- IMPORTANT: Change this to your email
                     subject: "✅ SUCCESS: Build for ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                     body: """<p>Build successful for branch/tag: <b>${env.BRANCH_NAME}</b></p>
                              <p>Commit: ${GIT_COMMIT}</p>
@@ -65,7 +65,7 @@ pipeline {
             echo 'Build failed. Sending email notification...'
             script {
                 emailext(
-                    to: 'your-email@example.com', // <-- IMPORTANT: Change this to your email
+                    to: 'q42722180@gmail.com', // <-- IMPORTANT: Change this to your email
                     subject: "❌ FAILURE: Build for ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                     body: """<p>Build FAILED for branch/tag: <b>${env.BRANCH_NAME}</b></p>
                              <p>Please check the console output for errors at <a href="${env.BUILD_URL}">Jenkins Build</a></p>""",
