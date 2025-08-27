@@ -2,13 +2,11 @@
 
 name: CI - Build and Push Docker Image
 
-# 触发条件：当推送到 main 分支或创建 v* 格式的 tag 时
 on:
   push:
     branches: [ "main" ]
     tags: [ 'v*.*.*' ]
 
-# 环境变量
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: guanqi-lab/jenkins-cicd-example # 格式为：your-username/your-repo-name
@@ -16,7 +14,6 @@ env:
 jobs:
   build-push-and-dispatch:
     runs-on: ubuntu-latest
-    # 设置工作流权限，允许写入 GitHub Packages (镜像仓库)
     permissions:
       contents: read
       packages: write
@@ -32,20 +29,24 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }} # GITHUB_TOKEN 是由 Actions 自动生成的
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       # 3. 动态提取 Docker 镜像的元数据（标签和名称）
+      #    --- 这是本次修改的核心部分 ---
       - name: Extract metadata for Docker
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          # 从 Git 的 tag 和 branch 中生成 Docker 标签
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            # 规则1: 当事件是推送一个 Git 标签时 (e.g. "v1.2.3"),
+            # 直接使用这个 Git 标签作为 Docker 标签。
+            type=ref,event=tag
+
+            # 规则2: 当事件是推送到一个分支时 (e.g. "main"),
+            # 使用自定义的格式： {日期}.{分支名}.{短commit_id}
+            # priority=200 确保此规则优先于其他默认规则
+            type=raw,value={{date 'YYYYMMDD'}}.{{branch}}.{{sha-short}},event=branch,priority=200
 
       # 4. 构建并推送 Docker 镜像
       - name: Build and push Docker image
@@ -59,7 +60,7 @@ jobs:
       # 5. 远程触发 Jenkins CD 作业
       - name: Trigger Jenkins CD Job
         run: |
-          # 从上一步的输出中获取第一个生成的 Docker 标签
+          # 这个脚本无需修改，它会自动从上一步的输出中获取正确的标签
           IMAGE_TAG=$(echo "${{ steps.meta.outputs.tags }}" | cut -d ',' -f 1 | sed 's#ghcr.io/${{ env.IMAGE_NAME }}:##')
           echo "Generated Docker tag is: $IMAGE_TAG"
           

@@ -51,7 +51,7 @@ pipeline {
                         echo "✨ Starting new container..."
                         sh """
                         docker run -d \
-                          -p 8080:8080 \
+                          -p 28080:28080 \
                           --name ${env.CONTAINER_NAME} \
                           --restart always \
                           ${env.IMAGE_NAME}:${params.IMAGE_TAG}
