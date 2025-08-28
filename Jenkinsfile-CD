@@ -73,7 +73,7 @@ pipeline {
             echo '✅ Deployment successful. Sending notification...'
             script {
                 emailext(
-                    to: 'your-team-email@example.com', // <-- 【重要】修改为您的收件人邮箱
+                    to: 'q42722180@gmail.com', // <-- 【重要】修改为您的收件人邮箱
                     subject: "✅ DEPLOY SUCCESS: Image [${params.IMAGE_TAG}] Deployed",
                     body: """
                     <p><b>部署成功通知</b></p>
@@ -94,7 +94,7 @@ pipeline {
             echo '❌ Deployment failed. Sending notification...'
             script {
                 emailext(
-                    to: 'your-team-email@example.com', // <-- 【重要】修改为您的收件人邮箱
+                    to: 'q42722180@gmail.com', // <-- 【重要】修改为您的收件人邮箱
                     subject: "❌ DEPLOY FAILED: Job [${env.JOB_NAME}]",
                     body: """
                     <p><b>部署失败通知</b></p>
