@@ -1,0 +1,41 @@
+# .github/workflows/list-image-tags.yml
+
+name: 查看最近的镜像标签 (List Recent Image Tags)
+
+# 允许在 Actions UI 界面被手动触发
+on:
+  workflow_dispatch:
+
+jobs:
+  list-tags:
+    runs-on: ubuntu-latest
+    # 需要读取 packages 的权限
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Fetch and display recent image tags
+        env:
+          # 使用 Actions 自动提供的 GITHUB_TOKEN 进行认证
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "正在从 GHCR 查询最近的 15 个镜像标签..."
+          echo "仓库: ${{ github.repository }}"
+          echo "--------------------------------------------------"
+          
+          # 使用 GitHub CLI 检查仓库所有者是用户还是组织，以构建正确的 API 路径
+          OWNER_TYPE=$(gh api "repos/${{ github.repository }}" --jq '.owner.type | ascii_downcase')
+          if [ "$OWNER_TYPE" == "organization" ]; then
+            API_PATH="/orgs/${{ github.repository_owner }}/packages/container/${{ github.event.repository.name }}/versions"
+          else
+            API_PATH="/users/${{ github.repository_owner }}/packages/container/${{ github.event.repository.name }}/versions"
+          fi
+
+          # 调用 GitHub API，获取最新的 15 个版本，并提取出镜像标签
+          # API 默认按创建时间倒序排列，所以结果就是最新的
+          gh api "${API_PATH}?per_page=15" --jq '.[] | .metadata.container.tags[0]'
+          
+          echo "--------------------------------------------------"
+          echo "✅ 查询完成。"
+          echo "请从以上列表中复制您想要部署的标签，然后到 '手动部署 (Manual Deployment)' 工作流中粘贴并执行。"

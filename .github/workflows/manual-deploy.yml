@@ -1,0 +1,25 @@
+name: 手动部署 (Manual Deployment)
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: '请输入要部署的镜像标签 (e.g., 20250828.main.3af5faf)'
+        required: true
+jobs:
+  trigger-jenkins:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Jenkins CD Job
+        run: |
+          echo "准备触发 Jenkins 部署..."
+          echo "将要部署的镜像标签是: ${{ github.event.inputs.image_tag }}"
+          
+          curl -X POST "${{ secrets.JENKINS_URL }}/job/hello-world-cd/buildWithParameters" \
+            --user ${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_API_TOKEN }} \
+            --data token="${{ secrets.JENKINS_CD_JOB_TOKEN }}" \
+            --data IMAGE_TAG="${{ github.event.inputs.image_tag }}" \
+            --data COMMIT_AUTHOR="手动部署 by ${{ github.actor }}" \
+            --data COMMIT_MESSAGE="Manually triggered deployment for tag: ${{ github.event.inputs.image_tag }}" \
+            --data COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/pkgs/container/${{ fromJSON(env.IMAGE_NAME_JSON) }}"
+        env:
+          IMAGE_NAME_JSON: ${{ toJSON(env.IMAGE_NAME) }}
