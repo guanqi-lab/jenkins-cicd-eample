@@ -4,9 +4,18 @@ env:
   CONTAINER_NAME: "buildkite-hello-world-go-service"
 
 steps:
+  # --- 新增：显式登录步骤 ---
+  - label: "🔑 Login to GHCR"
+    if: build.pull_request.id == null
+    # 这个命令会安全地从 Buildkite Secrets 获取令牌并登录 Docker
+    command: |
+      buildkite-agent secret get GHCR_TOKEN | docker login ghcr.io -u "${BUILDKITE_ORGANIZATION_SLUG}" --password-stdin
+
   # --- 自动化 CI 步骤 ---
   - label: "📦 Build and Push Image"
     if: build.pull_request.id == null
+    # 确保此步骤在登录成功后运行
+    depends_on: "🔑 Login to GHCR"
     plugins:
       - docker#v5.10.0:
           image: "${IMAGE_REPO}"
@@ -14,11 +23,11 @@ steps:
           push: true
           login:
             username: "${BUILDKITE_ORGANIZATION_SLUG}"
-            # 【修改】使用符合规范的密钥名称
+            # 使用符合规范的密钥名称
             password-env: GHCR_TOKEN
     # 将生成的镜像标签存为元数据，供后续步骤使用
     artifact_paths:
-      - "buildkite-meta-data/docker-image-tag > image_tag.txt"
+      - "buildkite-meta-data/docker-image-tag"
 
   # --- 手动批准 CD 步骤 ---
   - block: "🚀 Deploy to Production"
@@ -28,7 +37,7 @@ steps:
       - text: "Image Tag"
         key: "image-tag-to-deploy"
         # 从上一步的元数据中读取镜像标签作为默认值
-        default: "$(buildkite-agent artifact download image_tag.txt --stdout)"
+        default: "$(buildkite-agent artifact download 'buildkite-meta-data/docker-image-tag' --stdout)"
 
   # --- 自动化 CD 步骤 ---
   - label: "🚀 Executing Deployment"
@@ -37,7 +46,7 @@ steps:
       set -euo pipefail
 
       # 从元数据中读取要部署的镜像标签
-      IMAGE_TAG=$(buildkite-agent artifact download image_tag.txt --stdout)
+      IMAGE_TAG=$(buildkite-agent artifact download 'buildkite-meta-data/docker-image-tag' --stdout)
       
       echo "--- 部署信息 ---"
       echo "镜像仓库: ${IMAGE_REPO}"
@@ -45,7 +54,7 @@ steps:
       echo "容器名称: ${CONTAINER_NAME}"
 
       echo "--- 登录到 GHCR ---"
-      # 【修改】使用符合规范的密钥名称
+      # 使用符合规范的密钥名称
       buildkite-agent secret get GHCR_TOKEN | docker login ghcr.io -u "${BUILDKITE_ORGANIZATION_SLUG}" --password-stdin
 
       echo "--- 拉取新镜像 ---"
