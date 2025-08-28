@@ -8,6 +8,10 @@ pipeline {
     // 这个 IMAGE_TAG 将由 GitHub Actions 在触发时传入
     parameters {
         string(name: 'IMAGE_TAG', defaultValue: 'latest', description: '要部署的 Docker 镜像标签')
+        // 【新增】定义用于接收 Commit 信息的参数
+        string(name: 'COMMIT_AUTHOR', defaultValue: 'N/A', description: '代码提交人')
+        string(name: 'COMMIT_MESSAGE', defaultValue: 'N/A', description: '代码提交信息')
+        string(name: 'COMMIT_URL', defaultValue: '#', description: '代码提交链接')
     }
 
     // 环境变量：定义整个流水线中可用的变量，方便管理和修改
@@ -64,16 +68,11 @@ pipeline {
         }
     }
 
-    // =================================================================
-    // ================== 新增的邮件通知部分 (POST BLOCK) ==================
-    // =================================================================
     post {
-        // 当流水线成功时，执行这里的操作
         success {
-            echo '✅ Deployment successful. Sending notification...'
             script {
                 emailext(
-                    to: 'q42722180@gmail.com', // <-- 【重要】修改为您的收件人邮箱
+                    to: 'qiubai@gmail.com',
                     subject: "✅ DEPLOY SUCCESS: Image [${params.IMAGE_TAG}] Deployed",
                     body: """
                     <p><b>部署成功通知</b></p>
@@ -82,6 +81,11 @@ pipeline {
                         <li><b>作业名称:</b> ${env.JOB_NAME}</li>
                         <li><b>镜像标签:</b> ${params.IMAGE_TAG}</li>
                         <li><b>应用访问地址:</b> <a href="${env.APP_URL}">${env.APP_URL}</a></li>
+                        <hr>
+                        <li><b>触发来源 (提交人):</b> ${params.COMMIT_AUTHOR}</li>
+                        <li><b>提交信息:</b> ${params.COMMIT_MESSAGE}</li>
+                        <li><b>相关 Commit:</b> <a href="${params.COMMIT_URL}">点击查看</a></li>
+                        <hr>
                         <li><b>Jenkins 构建日志:</b> <a href="${env.BUILD_URL}">点击查看</a></li>
                     </ul>
                     """,
@@ -89,12 +93,10 @@ pipeline {
                 )
             }
         }
-        // 当流水线失败时，执行这里的操作
         failure {
-            echo '❌ Deployment failed. Sending notification...'
             script {
                 emailext(
-                    to: 'q42722180@gmail.com', // <-- 【重要】修改为您的收件人邮箱
+                    to: 'qiubai@gmail.com',
                     subject: "❌ DEPLOY FAILED: Job [${env.JOB_NAME}]",
                     body: """
                     <p><b>部署失败通知</b></p>
@@ -102,6 +104,11 @@ pipeline {
                     <ul>
                         <li><b>作业名称:</b> ${env.JOB_NAME}</li>
                         <li><b>尝试部署的镜像:</b> ${params.IMAGE_TAG}</li>
+                        <hr>
+                        <li><b>触发来源 (提交人):</b> ${params.COMMIT_AUTHOR}</li>
+                        <li><b>提交信息:</b> ${params.COMMIT_MESSAGE}</li>
+                        <li><b>相关 Commit:</b> <a href="${params.COMMIT_URL}">点击查看</a></li>
+                        <hr>
                         <li><b>Jenkins 构建日志:</b> <a href="${env.BUILD_URL}">点击查看详细错误</a></li>
                     </ul>
                     """,

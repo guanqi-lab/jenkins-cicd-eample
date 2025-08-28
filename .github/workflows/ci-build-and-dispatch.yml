@@ -23,10 +23,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # 这一步依然是必要的，确保我们有完整的 Git 历史
           fetch-depth: 0
 
-      # 2. 登录到 GitHub Container Registry (GHCR)
+      # 2. 登录 GHCR
       - name: Log in to the Container registry
         uses: docker/login-action@v3
         with:
@@ -34,12 +33,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 3. 【新增步骤】手动获取短 Commit ID
-      - name: Get short commit SHA
-        id: vars # 给这个步骤一个ID，方便后面引用
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      # 3. 手动获取短 Commit ID 和 Commit Message
+      - name: Get Git metadata
+        id: git_vars
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          # 将 commit message 中的换行符等特殊字符进行 URL 编码，以安全地传递
+          echo "commit_message=$(git log -1 --pretty=%B | sed -z 's/\n/\\n/g' | jq -s -R -r @uri)" >> $GITHUB_OUTPUT
 
-      # 4. 动态提取 Docker 镜像的元数据
+      # 4. 提取 Docker 元数据
       - name: Extract metadata for Docker
         id: meta
         uses: docker/metadata-action@v5
@@ -47,9 +49,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=tag
-            # 【修改】不再使用 {{sha-short}}
-            # 直接使用上一步 (id: vars) 的输出 (outputs.sha_short)
-            type=raw,value={{date 'YYYYMMDD'}}.{{branch}}.${{ steps.vars.outputs.sha_short }},event=branch,priority=200
+            type=raw,value={{date 'YYYYMMDD'}}.{{branch}}.${{ steps.git_vars.outputs.sha_short }},event=branch,priority=200
 
       # 5. 构建并推送 Docker 镜像
       - name: Build and push Docker image
@@ -61,12 +61,17 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
       # 6. 远程触发 Jenkins CD 作业
+      #    --- 这是本次修改的核心部分 ---
       - name: Trigger Jenkins CD Job
         run: |
           IMAGE_TAG=$(echo "${{ steps.meta.outputs.tags }}" | cut -d ',' -f 1 | sed 's#ghcr.io/${{ env.IMAGE_NAME }}:##')
           echo "Generated Docker tag is: $IMAGE_TAG"
           
+          # 【修改】在 curl 命令中添加新的 --data 参数
           curl -X POST "${{ secrets.JENKINS_URL }}/job/hello-world-cd/buildWithParameters" \
             --user ${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_API_TOKEN }} \
             --data token="${{ secrets.JENKINS_CD_JOB_TOKEN }}" \
-            --data IMAGE_TAG="$IMAGE_TAG"
+            --data IMAGE_TAG="$IMAGE_TAG" \
+            --data COMMIT_AUTHOR="${{ github.actor }}" \
+            --data COMMIT_MESSAGE="${{ steps.git_vars.outputs.commit_message }}" \
+            --data COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
