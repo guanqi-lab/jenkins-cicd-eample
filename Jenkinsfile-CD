@@ -64,24 +64,50 @@ pipeline {
         }
     }
 
-    // 后处理步骤：无论成功或失败都会执行
+    // =================================================================
+    // ================== 新增的邮件通知部分 (POST BLOCK) ==================
+    // =================================================================
     post {
-        always {
+        // 当流水线成功时，执行这里的操作
+        success {
+            echo '✅ Deployment successful. Sending notification...'
             script {
-                // 清理 Docker 登录信息
-                sh "docker logout ${env.REGISTRY}"
-                echo "🧹 Docker logout complete."
-                
-                // 清理悬空的 Docker 镜像（可选，但推荐）
-                // 这会删除所有没有被任何容器使用的旧镜像，节省磁盘空间
-                sh "docker image prune -af || true"
+                emailext(
+                    to: 'your-team-email@example.com', // <-- 【重要】修改为您的收件人邮箱
+                    subject: "✅ DEPLOY SUCCESS: Image [${params.IMAGE_TAG}] Deployed",
+                    body: """
+                    <p><b>部署成功通知</b></p>
+                    <p>一个新的镜像已成功部署。</p>
+                    <ul>
+                        <li><b>作业名称:</b> ${env.JOB_NAME}</li>
+                        <li><b>镜像标签:</b> ${params.IMAGE_TAG}</li>
+                        <li><b>应用访问地址:</b> <a href="${env.APP_URL}">${env.APP_URL}</a></li>
+                        <li><b>Jenkins 构建日志:</b> <a href="${env.BUILD_URL}">点击查看</a></li>
+                    </ul>
+                    """,
+                    mimeType: 'text/html'
+                )
             }
         }
-        success {
-            echo "✅ Pipeline finished successfully. Application is running at http://<Your-Server-IP>:8080"
-        }
+        // 当流水线失败时，执行这里的操作
         failure {
-            echo "❌ Pipeline failed. Please check the logs."
+            echo '❌ Deployment failed. Sending notification...'
+            script {
+                emailext(
+                    to: 'your-team-email@example.com', // <-- 【重要】修改为您的收件人邮箱
+                    subject: "❌ DEPLOY FAILED: Job [${env.JOB_NAME}]",
+                    body: """
+                    <p><b>部署失败通知</b></p>
+                    <p>在部署过程中发生错误，请立即检查。</p>
+                    <ul>
+                        <li><b>作业名称:</b> ${env.JOB_NAME}</li>
+                        <li><b>尝试部署的镜像:</b> ${params.IMAGE_TAG}</li>
+                        <li><b>Jenkins 构建日志:</b> <a href="${env.BUILD_URL}">点击查看详细错误</a></li>
+                    </ul>
+                    """,
+                    mimeType: 'text/html'
+                )
+            }
         }
     }
 }
