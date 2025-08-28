@@ -69,16 +69,12 @@ pipeline {
     }
 
     post {
-        // 使用 always 块确保无论成功或失败，都会尝试发送邮件
-        always {
+        success {
             script {
-                // 判断当前构建状态
-                def currentStatus = currentBuild.result ?: 'SUCCESS'
-                def subject, body
-
-                if (currentStatus == 'SUCCESS') {
-                    subject = "✅ DEPLOY SUCCESS: Image [${params.IMAGE_TAG}] Deployed"
-                    body = """
+                emailext(
+                    to: 'q42722180@gmail.com',
+                    subject: "✅ DEPLOY SUCCESS: Image [${params.IMAGE_TAG}] Deployed",
+                    body: """
                     <p><b>部署成功通知</b></p>
                     <p>一个新的镜像已成功部署。</p>
                     <ul>
@@ -92,10 +88,17 @@ pipeline {
                         <hr>
                         <li><b>Jenkins 构建日志:</b> <a href="${env.BUILD_URL}">点击查看</a></li>
                     </ul>
-                    """
-                } else {
-                    subject = "❌ DEPLOY FAILED: Job [${env.JOB_NAME}]"
-                    body = """
+                    """,
+                    mimeType: 'text/html'
+                )
+            }
+        }
+        failure {
+            script {
+                emailext(
+                    to: 'q42722180@gmail.com',
+                    subject: "❌ DEPLOY FAILED: Job [${env.JOB_NAME}]",
+                    body: """
                     <p><b>部署失败通知</b></p>
                     <p>在部署过程中发生错误，请立即检查。</p>
                     <ul>
@@ -108,21 +111,8 @@ pipeline {
                         <hr>
                         <li><b>Jenkins 构建日志:</b> <a href="${env.BUILD_URL}">点击查看详细错误</a></li>
                     </ul>
-                    """
-                }
-
-                // --- 核心修改：在这里直接提供所有邮件配置 ---
-                emailext(
-                    to: 'q42722180@gmail.com',
-                    subject: subject,
-                    body: body,
-                    mimeType: 'text/html',
-                    // 显式指定 SMTP 配置，绕过全局设置
-                    smtpHost: 'smtp.gmail.com',
-                    smtpPort: 465,
-                    smtpUsername: 'guanqi760@gmail.com', // 您的发件人邮箱
-                    smtpPassword: credentials('gmail-app-password'), // 直接通过 ID 调用凭证
-                    useSsl: true // 强制使用 SSL
+                    """,
+                    mimeType: 'text/html'
                 )
             }
         }
