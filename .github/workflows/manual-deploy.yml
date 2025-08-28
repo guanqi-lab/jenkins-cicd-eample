@@ -20,6 +20,4 @@ jobs:
             --data IMAGE_TAG="${{ github.event.inputs.image_tag }}" \
             --data COMMIT_AUTHOR="手动部署 by ${{ github.actor }}" \
             --data COMMIT_MESSAGE="Manually triggered deployment for tag: ${{ github.event.inputs.image_tag }}" \
-            --data COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/pkgs/container/${{ fromJSON(env.IMAGE_NAME_JSON) }}"
-        env:
-          IMAGE_NAME_JSON: ${{ toJSON(env.IMAGE_NAME) }}
+            --data COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/pkgs/container/${{ github.event.repository.name }}"

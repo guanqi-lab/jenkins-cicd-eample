@@ -70,48 +70,49 @@ pipeline {
     }
 
     post {
-        success {
+        always {
             script {
-                emailext(
-                    to: 'q42722180@gmail.com',
-                    subject: "✅ DEPLOY SUCCESS: Image [${env.IMAGE_NAME}:${params.IMAGE_TAG}] Deployed",
-                    body: """
+                def currentStatus = currentBuild.result ?: 'SUCCESS'
+                def subject, body
+                if (currentStatus == 'SUCCESS') {
+                    subject = "✅ DEPLOY SUCCESS: Image [${params.IMAGE_TAG}] Deployed"
+                    body = """
                     <p><b>部署成功通知</b></p>
-                    <p>一个新的镜像已成功部署。</p>
                     <ul>
                         <li><b>作业名称:</b> ${env.JOB_NAME}</li>
-                        <li><b>镜像名称:</b> ${env.IMAGE_NAME}:${params.IMAGE_TAG}</li>
+                        <li><b>镜像标签:</b> ${params.IMAGE_TAG}</li>
+                        <li><b>部署日志:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></li>
+                        <hr>
                         <li><b>触发来源 (提交人):</b> ${params.COMMIT_AUTHOR}</li>
                         <li><b>提交信息:</b> ${params.COMMIT_MESSAGE}</li>
                         <li><b>相关 Commit:</b> <a href="${params.COMMIT_URL}">点击查看</a></li>
-                        <hr>
-                        <li><b>Jenkins 构建日志:</b> <a href="${env.BUILD_URL}">点击查看</a></li>
                     </ul>
-                    """,
-                    mimeType: 'text/html'
-                )
-            }
-        }
-        failure {
-            script {
+                    """
+                } else {
+                    subject = "❌ DEPLOY FAILED: Job [${env.JOB_NAME}]"
+                    body = """
+                    <p><b>部署失败通知</b></p>
+                    <ul>
+                        <li><b>作业名称:</b> ${env.JOB_NAME}</li>
+                        <li><b>尝试部署的镜像:</b> ${params.IMAGE_TAG}</li>
+                        <li><b>部署日志:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></li>
+                        <hr>
+                        <li><b>触发来源 (提交人):</b> ${params.COMMIT_AUTHOR}</li>
+                        <li><b>提交信息:</b> ${params.COMMIT_MESSAGE}</li>
+                        <li><b>相关 Commit:</b> <a href="${params.COMMIT_URL}">点击查看</a></li>
+                    </ul>
+                    """
+                }
                 emailext(
                     to: 'q42722180@gmail.com',
-                    subject: "❌ DEPLOY FAILED: Job [${env.JOB_NAME}]",
-                    body: """
-                    <p><b>部署失败通知</b></p>
-                    <p>在部署过程中发生错误，请立即检查。</p>
-                    <ul>
-                        <li><b>作业名称:</b> ${env.JOB_NAME}</li>
-                        <li><b>尝试部署的镜像名称:</b> ${env.IMAGE_NAME}:${params.IMAGE_TAG}</li>
-                        <hr>
-                        <li><b>触发来源 (提交人):</b> ${params.COMMIT_AUTHOR}</li>
-                        <li><b>提交信息:</b> ${params.COMMIT_MESSAGE}</li>
-                        <li><b>相关 Commit:</b> <a href="${params.COMMIT_URL}">点击查看</a></li>
-                        <hr>
-                        <li><b>Jenkins 构建日志:</b> <a href="${env.BUILD_URL}">点击查看详细错误</a></li>
-                    </ul>
-                    """,
-                    mimeType: 'text/html'
+                    subject: subject,
+                    body: body,
+                    mimeType: 'text/html',
+                    // --- 为解决偶发性配置加载失败问题，在此显式定义 SMTP 设置 ---
+                    smtpHost: 'smtp.gmail.com',
+                    smtpPort: 465,
+                    credentialsId: 'gmail-app-password', // Jenkins 中存储 Gmail 应用密码的凭证 ID
+                    useSsl: true
                 )
             }
         }
