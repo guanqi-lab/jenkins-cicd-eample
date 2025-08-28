@@ -1,50 +1,60 @@
+# .buildkite/pipeline.yml
+
 # 定义环境变量，方便在多个步骤中复用
 env:
   IMAGE_REPO: "ghcr.io/${BUILDKITE_ORGANIZATION_SLUG}/${BUILDKITE_PIPELINE_SLUG}"
   CONTAINER_NAME: "buildkite-hello-world-go-service"
 
 steps:
+  # --- 新增：显式登录步骤 ---
+  - label: "🔑 Login to GHCR"
+    if: build.pull_request.id == null
+    # 这个命令会安全地从 Buildkite Secrets 获取令牌并登录 Docker
+    command: |
+      buildkite-agent secret get BUILDKITE_GHCR_TOKEN | docker login ghcr.io -u "${BUILDKITE_ORGANIZATION_SLUG}" --password-stdin
+
   # --- 自动化 CI 步骤 ---
   - label: "📦 Build and Push Image"
     if: build.pull_request.id == null
+    # 确保此步骤在登录成功后运行
+    depends_on: "🔑 Login to GHCR"
     plugins:
       - docker#v5.10.0:
           image: "${IMAGE_REPO}"
           tag: "${BUILDKITE_DATE_YYYYMMDD}.${BUILDKITE_BRANCH}.${BUILDKITE_COMMIT::8}"
           push: true
+          # login 块现在是可选的，因为我们已在前面步骤登录，但保留也无害
           login:
             username: "${BUILDKITE_ORGANIZATION_SLUG}"
             password-env: BUILDKITE_GHCR_TOKEN
-    # 将生成的镜像标签存为元数据，供后续步骤使用
+    # 修正：正确地上传插件生成的元数据文件
     artifact_paths:
-      - "buildkite-meta-data/docker-image-tag > image_tag.txt"
+      - "buildkite-meta-data/docker-image-tag"
 
   # --- 手动批准 CD 步骤 ---
   - block: "🚀 Deploy to Production"
     prompt: "请确认是否将以下镜像部署到生产环境？"
-    # 显示将要部署的镜像标签，增加操作的清晰度
     fields:
       - text: "Image Tag"
         key: "image-tag-to-deploy"
-        # 从上一步的元数据中读取镜像标签作为默认值
-        default: "$(buildkite-agent artifact download image_tag.txt --stdout)"
+        # 修正：使用正确的文件路径下载 artifact
+        default: "$(buildkite-agent artifact download 'buildkite-meta-data/docker-image-tag' --stdout)"
 
   # --- 自动化 CD 步骤 ---
   - label: "🚀 Executing Deployment"
-    # 定义部署脚本
     command: |
       set -euo pipefail
 
-      # 从元数据中读取要部署的镜像标签
-      IMAGE_TAG=$(buildkite-agent artifact download image_tag.txt --stdout)
+      # 修正：使用正确的文件路径下载 artifact
+      IMAGE_TAG=$(buildkite-agent artifact download 'buildkite-meta-data/docker-image-tag' --stdout)
       
       echo "--- 部署信息 ---"
       echo "镜像仓库: ${IMAGE_REPO}"
       echo "镜像标签: ${IMAGE_TAG}"
       echo "容器名称: ${CONTAINER_NAME}"
 
+      # 注意：部署步骤也需要登录，以防在不同的 Agent 上运行
       echo "--- 登录到 GHCR ---"
-      # 使用 buildkite-agent secret get 命令安全地获取密钥
       buildkite-agent secret get BUILDKITE_GHCR_TOKEN | docker login ghcr.io -u "${BUILDKITE_ORGANIZATION_SLUG}" --password-stdin
 
       echo "--- 拉取新镜像 ---"
