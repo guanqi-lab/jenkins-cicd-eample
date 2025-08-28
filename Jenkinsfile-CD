@@ -24,6 +24,7 @@ pipeline {
         IMAGE_NAME      = "${REGISTRY}/${GITHUB_USERNAME}/jenkins-cicd-eample" // <--- 如果仓库名不同，请修改
         // 部署后容器的名称，方便管理
         CONTAINER_NAME  = 'hello-world-go-service'
+
     }
 
     stages {
@@ -73,15 +74,13 @@ pipeline {
             script {
                 emailext(
                     to: 'q42722180@gmail.com',
-                    subject: "✅ DEPLOY SUCCESS: Image [${params.IMAGE_TAG}] Deployed",
+                    subject: "✅ DEPLOY SUCCESS: Image [${env.IMAGE_NAME}] Deployed",
                     body: """
                     <p><b>部署成功通知</b></p>
                     <p>一个新的镜像已成功部署。</p>
                     <ul>
                         <li><b>作业名称:</b> ${env.JOB_NAME}</li>
-                        <li><b>镜像标签:</b> ${params.IMAGE_TAG}</li>
-                        <li><b>应用访问地址:</b> <a href="${env.APP_URL}">${env.APP_URL}</a></li>
-                        <hr>
+                        <li><b>镜像名称:</b> ${env.IMAGE_NAME}</li>
                         <li><b>触发来源 (提交人):</b> ${params.COMMIT_AUTHOR}</li>
                         <li><b>提交信息:</b> ${params.COMMIT_MESSAGE}</li>
                         <li><b>相关 Commit:</b> <a href="${params.COMMIT_URL}">点击查看</a></li>
@@ -103,7 +102,7 @@ pipeline {
                     <p>在部署过程中发生错误，请立即检查。</p>
                     <ul>
                         <li><b>作业名称:</b> ${env.JOB_NAME}</li>
-                        <li><b>尝试部署的镜像:</b> ${params.IMAGE_TAG}</li>
+                        <li><b>尝试部署的镜像名称:</b> ${env.IMAGE_NAME}</li>
                         <hr>
                         <li><b>触发来源 (提交人):</b> ${params.COMMIT_AUTHOR}</li>
                         <li><b>提交信息:</b> ${params.COMMIT_MESSAGE}</li>

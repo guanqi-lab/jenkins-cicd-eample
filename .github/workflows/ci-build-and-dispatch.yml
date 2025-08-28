@@ -39,7 +39,7 @@ jobs:
         run: |
           echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           # 将 commit message 中的换行符等特殊字符进行 URL 编码，以安全地传递
-          echo "commit_message=$(git log -1 --pretty=%B | sed -z 's/\n/\\n/g' | jq -s -R -r @uri)" >> $GITHUB_OUTPUT
+          echo "commit_message=$(git log -1 --pretty=%s | sed -z 's/\n/\\n/g' | jq -s -R -r @uri)" >> $GITHUB_OUTPUT
 
       # 4. 提取 Docker 元数据
       - name: Extract metadata for Docker
