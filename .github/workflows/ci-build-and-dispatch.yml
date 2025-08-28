@@ -50,12 +50,11 @@ jobs:
           tags: |
             # 规则1: 当事件是推送到一个分支时
             # 格式: {日期}.{分支名}.{commit_id}
-            type=raw,value={{date 'YYYYMMDD'}}.{{branch}}.${{ steps.vars.outputs.sha_short }},event=branch
+            type=raw,value={{date 'YYYYMMDD'}}.{{tag}}.${{ steps.git_vars.outputs.sha_short }},event=tag
 
             # 规则2: 当事件是推送一个 Git 标签时
             # 格式: {日期}.{TAG号}.{commit_id}
-            type=raw,value={{date 'YYYYMMDD'}}.{{tag}}.${{ steps.vars.outputs.sha_short }},event=tag
-
+            type=raw,value={{date 'YYYYMMDD'}}.{{branch}}.${{ steps.git_vars.outputs.sha_short }},event=branch,priority=200
       # 5. 构建并推送 Docker 镜像
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
