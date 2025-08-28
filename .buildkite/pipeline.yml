@@ -1,0 +1,64 @@
+# 定义环境变量，方便在多个步骤中复用
+env:
+  IMAGE_REPO: "ghcr.io/${BUILDKITE_ORGANIZATION_SLUG}/${BUILDKITE_PIPELINE_SLUG}"
+  CONTAINER_NAME: "buildkite-hello-world-go-service"
+
+steps:
+  # --- 自动化 CI 步骤 ---
+  - label: "📦 Build and Push Image"
+    if: build.pull_request.id == null
+    plugins:
+      - docker#v5.10.0:
+          image: "${IMAGE_REPO}"
+          tag: "${BUILDKITE_DATE_YYYYMMDD}.${BUILDKITE_BRANCH}.${BUILDKITE_COMMIT::8}"
+          push: true
+          login:
+            username: "${BUILDKITE_ORGANIZATION_SLUG}"
+            password-env: BUILDKITE_GHCR_TOKEN
+    # 将生成的镜像标签存为元数据，供后续步骤使用
+    artifact_paths:
+      - "buildkite-meta-data/docker-image-tag > image_tag.txt"
+
+  # --- 手动批准 CD 步骤 ---
+  - block: "🚀 Deploy to Production"
+    prompt: "请确认是否将以下镜像部署到生产环境？"
+    # 显示将要部署的镜像标签，增加操作的清晰度
+    fields:
+      - text: "Image Tag"
+        key: "image-tag-to-deploy"
+        # 从上一步的元数据中读取镜像标签作为默认值
+        default: "$(buildkite-agent artifact download image_tag.txt --stdout)"
+
+  # --- 自动化 CD 步骤 ---
+  - label: "🚀 Executing Deployment"
+    # 定义部署脚本
+    command: |
+      set -euo pipefail
+
+      # 从元数据中读取要部署的镜像标签
+      IMAGE_TAG=$(buildkite-agent artifact download image_tag.txt --stdout)
+      
+      echo "--- 部署信息 ---"
+      echo "镜像仓库: ${IMAGE_REPO}"
+      echo "镜像标签: ${IMAGE_TAG}"
+      echo "容器名称: ${CONTAINER_NAME}"
+
+      echo "--- 登录到 GHCR ---"
+      # 使用 buildkite-agent secret get 命令安全地获取密钥
+      buildkite-agent secret get BUILDKITE_GHCR_TOKEN | docker login ghcr.io -u "${BUILDKITE_ORGANIZATION_SLUG}" --password-stdin
+
+      echo "--- 拉取新镜像 ---"
+      docker pull "${IMAGE_REPO}:${IMAGE_TAG}"
+
+      echo "--- 停止并移除旧容器 ---"
+      docker stop "${CONTAINER_NAME}" || true
+      docker rm "${CONTAINER_NAME}" || true
+
+      echo "--- 启动新容器 ---"
+      docker run -d \
+        -p 8080:8080 \
+        --name "${CONTAINER_NAME}" \
+        --restart always \
+        "${IMAGE_REPO}:${IMAGE_TAG}"
+      
+      echo "✅ 部署成功！"
