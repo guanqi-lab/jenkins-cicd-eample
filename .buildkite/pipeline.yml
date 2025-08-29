@@ -29,7 +29,6 @@ steps:
       docker build -t "${FULL_IMAGE_NAME}" .
 
       echo "--- Pushing image: ${FULL_IMAGE_NAME} ---"
-      # 直接调用 docker push
       docker push "${FULL_IMAGE_NAME}"
       
       buildkite-agent meta-data set "image-tag" "${IMAGE_TAG}"
