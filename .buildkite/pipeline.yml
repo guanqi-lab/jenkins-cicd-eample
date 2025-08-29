@@ -21,14 +21,22 @@ steps:
     command: |
       set -euo pipefail
       
-      # 【核心修复】使用 'cut' 命令替换所有有问题的语法
-      # 这是一个更稳健、无解析冲突的截取字符串的方法
+      echo "--- Generating Image Tag ---"
+
+      # 步骤 2.1: 获取并验证短 Commit SHA
       COMMIT_SHORT_SHA=$(echo "${BUILDKITE_COMMIT}" | cut -c1-8)
-      
-      # 现在使用这个干净的变量来构造标签
-      IMAGE_TAG="$(date -u +%Y%m%d).${BUILDKITE_BRANCH}.${COMMIT_SHORT_SHA}"
-      
+      echo "1. Short Commit SHA: ${COMMIT_SHORT_SHA}"
+
+      # 步骤 2.2: 获取并验证日期
+      BUILD_DATE=$(date -u +%Y%m%d)
+      echo "2. Build Date: ${BUILD_DATE}"
+
+      # 步骤 2.3: 构造并验证最终的镜像标签
+      IMAGE_TAG="${BUILD_DATE}.${BUILDKITE_BRANCH}.${COMMIT_SHORT_SHA}"
+      echo "3. Final Image Tag: ${IMAGE_TAG}"
+
       FULL_IMAGE_NAME="${IMAGE_REPO}:${IMAGE_TAG}"
+      echo "4. Full Image Name: ${FULL_IMAGE_NAME}"
       
       echo "--- Building image: ${FULL_IMAGE_NAME} ---"
       docker build -t "${FULL_IMAGE_NAME}" .
