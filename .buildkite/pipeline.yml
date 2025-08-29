@@ -15,7 +15,7 @@ steps:
 
   # 步骤 2: 构建和推送镜像
   - label: "📦 Build and Push Image"
-    key: "build-and-push"
+    key: "build"
     depends_on: "login"
     if: build.pull_request.id == null
     # 【核心修复】将所有命令合并到一行，用 && 连接，确保在同一个 Shell 进程中执行
@@ -32,24 +32,16 @@ steps:
       docker build -t "$${FULL_IMAGE_NAME}" . && \
       buildkite-agent meta-data set "image-tag" "$${IMAGE_TAG}"
 
-  # 步骤 3: 手动批准
-  - block: "🚀 Deploy to Production"
-    fields:
-      - text: "Image Tag"
-        key: "image-tag-to-deploy"
-        default: "$(buildkite-agent meta-data get 'image-tag')"
-
-  # 步骤 4: 执行部署
+  # 步骤 3: 执行部署
   - label: "🚀 Executing Deployment"
+    key: "execute-deployment"
+    depends_on: "build"
     command: |
       set -euo pipefail
       IMAGE_TAG=$(buildkite-agent meta-data get "image-tag")
       
       echo "--- Deploying image ${IMAGE_TAG} ---"
       
-      buildkite-agent secret get GHCR_TOKEN | docker login ghcr.io -u "${BUILDKITE_ORGANIZATION_SLUG}" --password-stdin
-
-      docker pull "${IMAGE_REPO}:${IMAGE_TAG}"
       docker stop "${CONTAINER_NAME}" || true
       docker rm "${CONTAINER_NAME}" || true
       docker run -d -p 8080:8080 --name "${CONTAINER_NAME}" --restart always "${IMAGE_REPO}:${IMAGE_TAG}"
