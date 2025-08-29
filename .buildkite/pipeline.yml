@@ -2,7 +2,6 @@
 
 env:
   IMAGE_REPO: "ghcr.io/${BUILDKITE_ORGANIZATION_SLUG}/${BUILDKITE_PIPELINE_SLUG}"
-  # 【修改】更新容器名称
   CONTAINER_NAME: "buildkite-hello-world-go-service"
 
 steps:
@@ -22,9 +21,12 @@ steps:
     command: |
       set -euo pipefail
       
-      # 【核心修复】使用 'date' 命令替换不存在的 Buildkite 变量
-      # date -u +%Y%m%d 会生成 UTC 时间的 YYYYMMDD 格式
-      IMAGE_TAG="${BUILDKITE_BRANCH}.$${BUILDKITE_COMMIT::8}"
+      # 【核心修复】使用 'cut' 命令替换所有有问题的语法
+      # 这是一个更稳健、无解析冲突的截取字符串的方法
+      COMMIT_SHORT_SHA=$(echo "${BUILDKITE_COMMIT}" | cut -c1-8)
+      
+      # 现在使用这个干净的变量来构造标签
+      IMAGE_TAG="$(date -u +%Y%m%d).${BUILDKITE_BRANCH}.${COMMIT_SHORT_SHA}"
       
       FULL_IMAGE_NAME="${IMAGE_REPO}:${IMAGE_TAG}"
       
