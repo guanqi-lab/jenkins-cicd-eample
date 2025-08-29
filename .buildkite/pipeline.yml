@@ -2,11 +2,14 @@
 
 env:
   IMAGE_REPO: "ghcr.io/${BUILDKITE_ORGANIZATION_SLUG}/${BUILDKITE_PIPELINE_SLUG}"
+  # 【修改】更新容器名称
   CONTAINER_NAME: "buildkite-hello-world-go-service"
 
 steps:
   # 步骤 1: 显式登录
   - label: "🔑 Login to GHCR"
+    # 【核心修复】为步骤添加一个符合规范的 key
+    key: "login"
     if: build.pull_request.id == null
     command: |
       echo "--- Logging in to GHCR ---"
@@ -14,14 +17,15 @@ steps:
 
   # 步骤 2: 使用原生 command 步骤进行构建和推送
   - label: "📦 Build and Push Image"
+    # 【核心修复】为步骤添加 key，并在 depends_on 中引用上一步的 key
+    key: "build-and-push"
+    depends_on: "login"
     if: build.pull_request.id == null
-    depends_on: "🔑 Login to GHCR"
     command: |
       set -euo pipefail
-
-      # 【核心修复】使用 $$ 转义美元符号，防止 Buildkite 解析器错误地解析
-      IMAGE_TAG="${BUILDKITE_DATE_YYYYMMDD}.${BUILDKITE_BRANCH}.$${BUILDKITE_COMMIT::8}"
       
+      # 使用 $$ 转义美元符号，防止 Buildkite 解析器错误地解析
+      IMAGE_TAG="${BUILDKITE_DATE_YYYYMMDD}.${BUILDKITE_BRANCH}.$${BUILDKITE_COMMIT::8}"
       FULL_IMAGE_NAME="${IMAGE_REPO}:${IMAGE_TAG}"
       
       echo "--- Building image: ${FULL_IMAGE_NAME} ---"
