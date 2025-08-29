@@ -24,7 +24,7 @@ steps:
           login:
             username: "${BUILDKITE_ORGANIZATION_SLUG}"
             # 使用符合规范的密钥名称
-            password-env: GHCR_TOKEN
+            password-env: BUILDKITE_GHCR_TOKEN
     # 将生成的镜像标签存为元数据，供后续步骤使用
     artifact_paths:
       - "buildkite-meta-data/docker-image-tag"
@@ -55,7 +55,7 @@ steps:
 
       echo "--- 登录到 GHCR ---"
       # 使用符合规范的密钥名称
-      buildkite-agent secret get GHCR_TOKEN | docker login ghcr.io -u "${BUILDKITE_ORGANIZATION_SLUG}" --password-stdin
+      buildkite-agent secret get BUILDKITE_GHCR_TOKEN | docker login ghcr.io -u "${BUILDKITE_ORGANIZATION_SLUG}" --password-stdin
 
       echo "--- 拉取新镜像 ---"
       docker pull "${IMAGE_REPO}:${IMAGE_TAG}"
