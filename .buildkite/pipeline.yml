@@ -37,13 +37,10 @@ steps:
     key: "execute-deployment"
     depends_on: "build"
     command: |
-      set -euo pipefail
-      IMAGE_TAG=$(buildkite-agent meta-data get "image-tag")
-      
-      echo "--- Deploying image ${IMAGE_TAG} ---"
-      
-      docker stop "${CONTAINER_NAME}" || true
-      docker rm "${CONTAINER_NAME}" || true
-      docker run -d -p 8080:8080 --name "${CONTAINER_NAME}" --restart always "${IMAGE_REPO}:${IMAGE_TAG}"
-      
+      set -euo pipefail && \
+      IMAGE_TAG=$(buildkite-agent meta-data get "image-tag") && \
+      echo "--- Deploying image ${IMAGE_TAG} ---" && \
+      docker stop "${CONTAINER_NAME}" || true && \
+      docker rm "${CONTAINER_NAME}" || true && \
+      docker run -d -p 8080:8080 --name "${CONTAINER_NAME}" --restart always "${IMAGE_REPO}:${IMAGE_TAG}" && \
       echo "✅ Deployment successful!"
