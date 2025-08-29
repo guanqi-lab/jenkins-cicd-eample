@@ -14,22 +14,23 @@ steps:
       buildkite-agent secret get GHCR_TOKEN | docker login ghcr.io -u "${BUILDKITE_ORGANIZATION_SLUG}" --password-stdin
 
   # 步骤 2: 构建和推送镜像
+  # 步骤 2: 构建和推送镜像
   - label: "📦 Build and Deploy Image"
     key: "build"
     depends_on: "login"
     if: build.pull_request.id == null
-    # 【核心修复】将所有命令合并到一行，用 && 连接，确保在同一个 Shell 进程中执行
     command: |
-      set -euo pipefail && \
-      echo "--- Generating Image Tag ---" && \
-      export COMMIT_SHORT_SHA=$$(echo "$${BUILDKITE_COMMIT}" | cut -c1-8) && \
-      export BUILD_DATE=$$(date -u +%Y%m%d) && \
-      export IMAGE_TAG="$${BUILD_DATE}.$${BUILDKITE_BRANCH}.$${COMMIT_SHORT_SHA}" && \
-      export FULL_IMAGE_NAME="$${IMAGE_REPO}:$${IMAGE_TAG}" && \
-      echo "Final Image Tag: $${IMAGE_TAG}" && \
-      echo "Full Image Name: $${FULL_IMAGE_NAME}" && \
-      echo "--- Building image: $${FULL_IMAGE_NAME} ---" && \
-      docker build -t "$${FULL_IMAGE_NAME}" . && \
-      echo "--- Deploying image ${IMAGE_TAG} ---" && \
-      docker run -d -p 38080:8080 --name "${CONTAINER_NAME}" --restart always "${IMAGE_REPO}:${IMAGE_TAG}" && \
+      set -euo pipefail
+      echo "--- Generating Image Tag ---"
+      export COMMIT_SHORT_SHA=$(echo "${BUILDKITE_COMMIT}" | cut -c1-8)
+      export BUILD_DATE=$(date -u +%Y%m%d)
+      export IMAGE_TAG="${BUILD_DATE}.${BUILDKITE_BRANCH}.${COMMIT_SHORT_SHA}"
+      export FULL_IMAGE_NAME="${IMAGE_REPO}:${IMAGE_TAG}"
+      echo "Final Image Tag: ${IMAGE_TAG}"
+      echo "Full Image Name: ${FULL_IMAGE_NAME}"
+      echo "--- Building image: ${FULL_IMAGE_NAME} ---"
+      docker build -t "${FULL_IMAGE_NAME}" .
+      echo "--- Deploying image ${IMAGE_TAG} ---"
+      # 修正这里：使用FULL_IMAGE_NAME变量而不是手动拼接
+      docker run -d -p 38080:8080 --name "${CONTAINER_NAME}" --restart always "${FULL_IMAGE_NAME}"
       echo "✅ Deployment successful!"
