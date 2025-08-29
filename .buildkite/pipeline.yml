@@ -1,32 +1,56 @@
 # .buildkite/pipeline.yml
 
-# 定义环境变量，方便在多个步骤中复用
 env:
   IMAGE_REPO: "ghcr.io/${BUILDKITE_ORGANIZATION_SLUG}/${BUILDKITE_PIPELINE_SLUG}"
   CONTAINER_NAME: "buildkite-hello-world-go-service"
 
 steps:
-  # 【移除】不再需要独立的登录步骤和 depends_on
-  # - label: "🔑 Login to GHCR"
-  #   ...
+  # --- 新增的调试步骤 ---
+  - label: "🔍 Verify GHCR_TOKEN"
+    if: build.pull_request.id == null
+    command: |
+      echo "--- 正在验证 GHCR_TOKEN 密钥 ---"
+      # 安全地获取密钥
+      TOKEN_VALUE=$(buildkite-agent secret get GHCR_TOKEN)
 
-  # --- 自动化 CI 步骤 ---
+      # 检查密钥是否为空
+      if [ -z "$TOKEN_VALUE" ]; then
+        echo "🚨 错误：GHCR_TOKEN 未能获取到，值为空！"
+        echo "请检查 Buildkite 组织中的 Secret 名称是否为 GHCR_TOKEN。"
+        exit 1
+      else
+        echo "✅ 成功获取到 GHCR_TOKEN。"
+        # 打印密钥的长度，这是一个安全的验证方式
+        TOKEN_LENGTH=${#TOKEN_VALUE}
+        echo "密钥长度为: $TOKEN_LENGTH"
+        # 打印密钥的最后4位字符，进一步确认
+        LAST_FOUR_CHARS=$(echo "$TOKEN_VALUE" | tail -c 5)
+        echo "密钥的最后4位字符为: ...$LAST_FOUR_CHARS"
+        echo "请将此与您在 GitHub 生成的 PAT 进行核对。"
+      fi
+
+  # 步骤 2: 显式登录
+  - label: "🔑 Login to GHCR"
+    if: build.pull_request.id == null
+    # 确保此步骤在验证成功后才运行
+    depends_on: "🔍 Verify GHCR_TOKEN"
+    command: |
+      echo "--- Logging in to GHCR ---"
+      buildkite-agent secret get GHCR_TOKEN | docker login ghcr.io -u "${BUILDKITE_ORGANIZATION_SLUG}" --password-stdin
+
+  # 步骤 3: 构建和推送镜像
   - label: "📦 Build and Push Image"
     if: build.pull_request.id == null
+    depends_on: "🔑 Login to GHCR"
     plugins:
-      # 【回归并修正】将登录逻辑放回插件内部
       - docker#v5.10.0:
           image: "${IMAGE_REPO}"
-          # Docker 插件会在执行所有操作前，使用这里的凭证进行登录
-          login:
-            username: "${BUILDKITE_ORGANIZATION_SLUG}"
-            password-env: BUILDKITE_GHCR_TOKEN
-          # 构建与推送的配置
           tag: "${BUILDKITE_DATE_YYYYMMDD}.${BUILDKITE_BRANCH}.${BUILDKITE_COMMIT::8}"
           push: true
-    # 将生成的镜像标签存为元数据，供后续步骤使用
     artifact_paths:
       - "buildkite-meta-data/docker-image-tag"
+
+  # ... 后续的 block 和部署步骤保持不变 ...
 
   # --- 手动批准 CD 步骤 ---
   - block: "🚀 Deploy to Production"
