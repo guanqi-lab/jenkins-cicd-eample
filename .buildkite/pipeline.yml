@@ -5,30 +5,32 @@ env:
   CONTAINER_NAME: "buildkite-hello-world-go-service"
 
 steps:
-  # This single step now handles the entire CI/CD process
+  # 这个单一的步骤现在处理整个 CI/CD 流程
   - label: "📦 Build and Deploy"
     if: build.pull_request.id == null
+    # 【核心修复】使用 '|' 确保所有命令在同一个 Shell 进程中执行
     command: |
-      # Ensure script exits immediately if any command fails
+      # set -euo pipefail 会让脚本在任何命令失败时立即退出
       set -euo pipefail
 
-      # --- 1. Login to GHCR ---
+      # --- 1. 登录到 GHCR ---
       echo "--- Logging in to GHCR ---"
       buildkite-agent secret get GHCR_TOKEN | docker login ghcr.io -u "${BUILDKITE_ORGANIZATION_SLUG}" --password-stdin
 
-      # --- 2. Generate Image Tag ---
+      # --- 2. 生成镜像标签 ---
       echo "--- Generating Image Tag ---"
+      # 现在所有变量都会被正确地定义和传递
       COMMIT_SHORT_SHA=$(echo "${BUILDKITE_COMMIT}" | cut -c1-8)
       BUILD_DATE=$(date -u +%Y%m%d)
       IMAGE_TAG="${BUILD_DATE}.${BUILDKITE_BRANCH}.${COMMIT_SHORT_SHA}"
       FULL_IMAGE_NAME="${IMAGE_REPO}:${IMAGE_TAG}"
       echo "Full Image Name: ${FULL_IMAGE_NAME}"
 
-      # --- 3. Build the Image ---
-      echo "--- Building image: ${FULL_IMAGE_NAME} ---"
+      # --- 3. 构建本地镜像 ---
+      echo "--- Building local image: ${FULL_IMAGE_NAME} ---"
       docker build -t "${FULL_IMAGE_NAME}" .
       
-      # --- 5. Deploy the Image ---
+      # --- 4. 部署本地镜像 ---
       echo "--- Deploying image ${FULL_IMAGE_NAME} ---"
       docker stop "${CONTAINER_NAME}" || true
       docker rm "${CONTAINER_NAME}" || true
