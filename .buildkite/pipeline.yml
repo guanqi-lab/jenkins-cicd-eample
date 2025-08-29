@@ -2,7 +2,7 @@
 
 env:
   IMAGE_REPO: "ghcr.io/${BUILDKITE_ORGANIZATION_SLUG}/${BUILDKITE_PIPELINE_SLUG}"
-  CONTAINER_NAME: "hello-world-go-service"
+  CONTAINER_NAME: "buildkite-hello-world-go-service"
 
 steps:
   # 步骤 1: 显式登录
@@ -12,33 +12,43 @@ steps:
       echo "--- Logging in to GHCR ---"
       buildkite-agent secret get GHCR_TOKEN | docker login ghcr.io -u "${BUILDKITE_ORGANIZATION_SLUG}" --password-stdin
 
-  # 步骤 2: 构建和推送镜像
+  # 步骤 2: 【核心修改】使用原生 command 步骤进行构建和推送
   - label: "📦 Build and Push Image"
     if: build.pull_request.id == null
     depends_on: "🔑 Login to GHCR"
-    plugins:
-      - docker#v5.10.0:
-          # 【核心修复】明确告诉插件要执行构建操作
-          # build: . 表示使用当前目录下的 Dockerfile 进行构建
-          build: .
-          image: "${IMAGE_REPO}"
-          push: true
-          tag: "${BUILDKITE_DATE_YYYYMMDD}.${BUILDKITE_BRANCH}.${BUILDKITE_COMMIT::8}"
-    artifact_paths:
-      - "buildkite-meta-data/docker-image-tag"
+    command: |
+      # 增加脚本的健壮性
+      set -euo pipefail
+
+      # 动态生成镜像标签
+      IMAGE_TAG="${BUILDKITE_DATE_YYYYMMDD}.${BUILDKITE_BRANCH}.${BUILDKITE_COMMIT::8}"
+      FULL_IMAGE_NAME="${IMAGE_REPO}:${IMAGE_TAG}"
+      
+      echo "--- Building image: ${FULL_IMAGE_NAME} ---"
+      # 直接调用 docker build
+      docker build -t "${FULL_IMAGE_NAME}" .
+
+      echo "--- Pushing image: ${FULL_IMAGE_NAME} ---"
+      # 直接调用 docker push
+      docker push "${FULL_IMAGE_NAME}"
+      
+      # 将生成的标签存为 meta-data，供后续步骤使用
+      buildkite-agent meta-data set "image-tag" "${IMAGE_TAG}"
 
   # 步骤 3: 手动批准
   - block: "🚀 Deploy to Production"
     fields:
       - text: "Image Tag"
         key: "image-tag-to-deploy"
-        default: "$(buildkite-agent artifact download 'buildkite-meta-data/docker-image-tag' --stdout)"
+        # 【修改】从 meta-data 中获取标签
+        default: "$(buildkite-agent meta-data get 'image-tag')"
 
   # 步骤 4: 执行部署
   - label: "🚀 Executing Deployment"
     command: |
       set -euo pipefail
-      IMAGE_TAG=$(buildkite-agent artifact download 'buildkite-meta-data/docker-image-tag' --stdout)
+      # 【修改】从 meta-data 中获取标签
+      IMAGE_TAG=$(buildkite-agent meta-data get "image-tag")
       
       echo "--- Deploying image ${IMAGE_TAG} ---"
       
