@@ -30,8 +30,6 @@ steps:
       echo "Full Image Name: $${FULL_IMAGE_NAME}" && \
       echo "--- Building image: $${FULL_IMAGE_NAME} ---" && \
       docker build -t "$${FULL_IMAGE_NAME}" . && \
-      echo "--- Pushing image: $${FULL_IMAGE_NAME} ---" && \
-      docker push "$${FULL_IMAGE_NAME}" && \
       buildkite-agent meta-data set "image-tag" "$${IMAGE_TAG}"
 
   # 步骤 3: 手动批准
