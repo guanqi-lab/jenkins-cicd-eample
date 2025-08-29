@@ -12,20 +12,19 @@ steps:
       echo "--- Logging in to GHCR ---"
       buildkite-agent secret get GHCR_TOKEN | docker login ghcr.io -u "${BUILDKITE_ORGANIZATION_SLUG}" --password-stdin
 
-  # 步骤 2: 【核心修改】使用原生 command 步骤进行构建和推送
+  # 步骤 2: 使用原生 command 步骤进行构建和推送
   - label: "📦 Build and Push Image"
     if: build.pull_request.id == null
     depends_on: "🔑 Login to GHCR"
     command: |
-      # 增加脚本的健壮性
       set -euo pipefail
 
-      # 动态生成镜像标签
-      IMAGE_TAG="${BUILDKITE_DATE_YYYYMMDD}.${BUILDKITE_BRANCH}.${BUILDKITE_COMMIT::8}"
+      # 【核心修复】使用 $$ 转义美元符号，防止 Buildkite 解析器错误地解析
+      IMAGE_TAG="${BUILDKITE_DATE_YYYYMMDD}.${BUILDKITE_BRANCH}.$${BUILDKITE_COMMIT::8}"
+      
       FULL_IMAGE_NAME="${IMAGE_REPO}:${IMAGE_TAG}"
       
       echo "--- Building image: ${FULL_IMAGE_NAME} ---"
-      # 直接调用 docker build
       docker build -t "${FULL_IMAGE_NAME}" .
 
       echo "--- Pushing image: ${FULL_IMAGE_NAME} ---"
@@ -38,14 +37,12 @@ steps:
     fields:
       - text: "Image Tag"
         key: "image-tag-to-deploy"
-        # 【修改】从 meta-data 中获取标签
         default: "$(buildkite-agent meta-data get 'image-tag')"
 
   # 步骤 4: 执行部署
   - label: "🚀 Executing Deployment"
     command: |
       set -euo pipefail
-      # 【修改】从 meta-data 中获取标签
       IMAGE_TAG=$(buildkite-agent meta-data get "image-tag")
       
       echo "--- Deploying image ${IMAGE_TAG} ---"
