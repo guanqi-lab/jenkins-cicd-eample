@@ -18,7 +18,6 @@ steps:
     key: "build"
     depends_on: "login"
     if: build.pull_request.id == null
-    # 【核心修复】将所有命令合并到一行，用 && 连接，确保在同一个 Shell 进程中执行
     command: |
       set -euo pipefail && \
       echo "--- Generating Image Tag ---" && \
