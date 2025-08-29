@@ -8,7 +8,6 @@ env:
 steps:
   # 步骤 1: 显式登录
   - label: "🔑 Login to GHCR"
-    # 【核心修复】为步骤添加一个符合规范的 key
     key: "login"
     if: build.pull_request.id == null
     command: |
@@ -17,15 +16,16 @@ steps:
 
   # 步骤 2: 使用原生 command 步骤进行构建和推送
   - label: "📦 Build and Push Image"
-    # 【核心修复】为步骤添加 key，并在 depends_on 中引用上一步的 key
     key: "build-and-push"
     depends_on: "login"
     if: build.pull_request.id == null
     command: |
       set -euo pipefail
       
-      # 使用 $$ 转义美元符号，防止 Buildkite 解析器错误地解析
-      IMAGE_TAG="${BUILDKITE_DATE_YYYYMMDD}.${BUILDKITE_BRANCH}.$${BUILDKITE_COMMIT::8}"
+      # 【核心修复】使用 'date' 命令替换不存在的 Buildkite 变量
+      # date -u +%Y%m%d 会生成 UTC 时间的 YYYYMMDD 格式
+      IMAGE_TAG="$(date -u +%Y%m%d).${BUILDKITE_BRANCH}.$${BUILDKITE_COMMIT::8}"
+      
       FULL_IMAGE_NAME="${IMAGE_REPO}:${IMAGE_TAG}"
       
       echo "--- Building image: ${FULL_IMAGE_NAME} ---"
