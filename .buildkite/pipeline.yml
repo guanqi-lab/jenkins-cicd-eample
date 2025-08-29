@@ -24,7 +24,7 @@ steps:
       
       # 【核心修复】使用 'date' 命令替换不存在的 Buildkite 变量
       # date -u +%Y%m%d 会生成 UTC 时间的 YYYYMMDD 格式
-      IMAGE_TAG="$(date -u +%Y%m%d).${BUILDKITE_BRANCH}.$${BUILDKITE_COMMIT::8}"
+      IMAGE_TAG="${BUILDKITE_BRANCH}.$${BUILDKITE_COMMIT::8}"
       
       FULL_IMAGE_NAME="${IMAGE_REPO}:${IMAGE_TAG}"
       
