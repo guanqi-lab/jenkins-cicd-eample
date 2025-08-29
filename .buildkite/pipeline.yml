@@ -5,35 +5,42 @@ env:
   CONTAINER_NAME: "buildkite-hello-world-go-service"
 
 steps:
-  # 这个单一的步骤现在处理整个 CI/CD 流程
-  - label: "📦 Build and Deploy"
+  # 步骤 1: 显式登录
+  - label: "🔑 Login to GHCR"
+    key: "login"
     if: build.pull_request.id == null
-    # 【核心修复】使用 '|' 确保所有命令在同一个 Shell 进程中执行
     command: |
-      # set -euo pipefail 会让脚本在任何命令失败时立即退出
-      set -euo pipefail
-
-      # --- 1. 登录到 GHCR ---
       echo "--- Logging in to GHCR ---"
       buildkite-agent secret get GHCR_TOKEN | docker login ghcr.io -u "${BUILDKITE_ORGANIZATION_SLUG}" --password-stdin
 
-      # --- 2. 生成镜像标签 ---
-      echo "--- Generating Image Tag ---"
-      # 现在所有变量都会被正确地定义和传递
-      COMMIT_SHORT_SHA=$(echo "${BUILDKITE_COMMIT}" | cut -c1-8)
-      BUILD_DATE=$(date -u +%Y%m%d)
-      IMAGE_TAG="${BUILD_DATE}.${BUILDKITE_BRANCH}.${COMMIT_SHORT_SHA}"
-      FULL_IMAGE_NAME="${IMAGE_REPO}:${IMAGE_TAG}"
-      echo "Full Image Name: ${FULL_IMAGE_NAME}"
+  # 步骤 2: 构建和推送镜像
+  - label: "📦 Build and Push Image"
+    key: "build"
+    depends_on: "login"
+    if: build.pull_request.id == null
+    # 【核心修复】将所有命令合并到一行，用 && 连接，确保在同一个 Shell 进程中执行
+    command: |
+      set -euo pipefail && \
+      echo "--- Generating Image Tag ---" && \
+      export COMMIT_SHORT_SHA=$$(echo "$${BUILDKITE_COMMIT}" | cut -c1-8) && \
+      export BUILD_DATE=$$(date -u +%Y%m%d) && \
+      export IMAGE_TAG="$${BUILD_DATE}.$${BUILDKITE_BRANCH}.$${COMMIT_SHORT_SHA}" && \
+      export FULL_IMAGE_NAME="$${IMAGE_REPO}:$${IMAGE_TAG}" && \
+      echo "Final Image Tag: $${IMAGE_TAG}" && \
+      echo "Full Image Name: $${FULL_IMAGE_NAME}" && \
+      echo "--- Building image: $${FULL_IMAGE_NAME} ---" && \
+      docker build -t "$${FULL_IMAGE_NAME}" . && \
+      buildkite-agent meta-data set "image-tag" "$${IMAGE_TAG}"
 
-      # --- 3. 构建本地镜像 ---
-      echo "--- Building local image: ${FULL_IMAGE_NAME} ---"
-      docker build -t "${FULL_IMAGE_NAME}" .
-      
-      # --- 4. 部署本地镜像 ---
-      echo "--- Deploying image ${FULL_IMAGE_NAME} ---"
-      docker stop "${CONTAINER_NAME}" || true
-      docker rm "${CONTAINER_NAME}" || true
-      docker run -d -p 8080:8080 --name "${CONTAINER_NAME}" --restart always "${FULL_IMAGE_NAME}"
-      
-      echo "✅ Build and Deployment successful!"
+  # 步骤 3: 执行部署
+  - label: "🚀 Executing Deployment"
+    key: "execute-deployment"
+    depends_on: "build"
+    command: |
+      set -euo pipefail && \
+      IMAGE_TAG=$(buildkite-agent meta-data get "image-tag") && \
+      echo "--- Deploying image ${IMAGE_TAG} ---" && \
+      docker stop "${CONTAINER_NAME}" || true && \
+      docker rm "${CONTAINER_NAME}" || true && \
+      docker run -d -p 8080:8080 --name "${CONTAINER_NAME}" --restart always "${IMAGE_REPO}:${IMAGE_TAG}" && \
+      echo "✅ Deployment successful!"
