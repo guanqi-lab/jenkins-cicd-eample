@@ -2,89 +2,51 @@
 
 env:
   IMAGE_REPO: "ghcr.io/${BUILDKITE_ORGANIZATION_SLUG}/${BUILDKITE_PIPELINE_SLUG}"
-  CONTAINER_NAME: "buildkite-hello-world-go-service"
+  CONTAINER_NAME: "hello-world-go-service"
 
 steps:
-  # --- 新增的调试步骤 ---
-  - label: "🔍 Verify GHCR_TOKEN"
-    if: build.pull_request.id == null
-    command: |
-      echo "--- 正在验证 GHCR_TOKEN 密钥 ---"
-      # 安全地获取密钥
-      TOKEN_VALUE=$(buildkite-agent secret get GHCR_TOKEN)
-
-      # 检查密钥是否为空
-      if [ -z "$TOKEN_VALUE" ]; then
-        echo "🚨 错误：GHCR_TOKEN 未能获取到，值为空！"
-        echo "请检查 Buildkite 组织中的 Secret 名称是否为 GHCR_TOKEN。"
-        exit 1
-      else
-        echo "✅ 成功获取到 GHCR_TOKEN。"
-        # 打印密钥的长度，这是一个安全的验证方式
-        TOKEN_LENGTH=${#TOKEN_VALUE}
-        echo "密钥长度为: $TOKEN_LENGTH"
-        # 打印密钥的最后4位字符，进一步确认
-        LAST_FOUR_CHARS=$(echo "$TOKEN_VALUE" | tail -c 5)
-        echo "密钥的最后4位字符为: ...$LAST_FOUR_CHARS"
-        echo "请将此与您在 GitHub 生成的 PAT 进行核对。"
-      fi
-
-  # 步骤 2: 显式登录
+  # 步骤 1: 显式登录
   - label: "🔑 Login to GHCR"
     if: build.pull_request.id == null
-    # 确保此步骤在验证成功后才运行
-    depends_on: "🔍 Verify GHCR_TOKEN"
     command: |
       echo "--- Logging in to GHCR ---"
       buildkite-agent secret get GHCR_TOKEN | docker login ghcr.io -u "${BUILDKITE_ORGANIZATION_SLUG}" --password-stdin
 
-  # 步骤 3: 构建和推送镜像
+  # 步骤 2: 构建和推送镜像
   - label: "📦 Build and Push Image"
     if: build.pull_request.id == null
     depends_on: "🔑 Login to GHCR"
     plugins:
       - docker#v5.10.0:
+          # 【核心修复】明确告诉插件要执行构建操作
+          # build: . 表示使用当前目录下的 Dockerfile 进行构建
+          build: .
           image: "${IMAGE_REPO}"
-          tag: "${BUILDKITE_DATE_YYYYMMDD}.${BUILDKITE_BRANCH}.${BUILDKITE_COMMIT::8}"
           push: true
+          tag: "${BUILDKITE_DATE_YYYYMMDD}.${BUILDKITE_BRANCH}.${BUILDKITE_COMMIT::8}"
     artifact_paths:
       - "buildkite-meta-data/docker-image-tag"
 
-  # ... 后续的 block 和部署步骤保持不变 ...
-
-  # --- 手动批准 CD 步骤 ---
+  # 步骤 3: 手动批准
   - block: "🚀 Deploy to Production"
-    prompt: "请确认是否将以下镜像部署到生产环境？"
     fields:
       - text: "Image Tag"
         key: "image-tag-to-deploy"
         default: "$(buildkite-agent artifact download 'buildkite-meta-data/docker-image-tag' --stdout)"
 
-  # --- 自动化 CD 步骤 ---
+  # 步骤 4: 执行部署
   - label: "🚀 Executing Deployment"
     command: |
       set -euo pipefail
       IMAGE_TAG=$(buildkite-agent artifact download 'buildkite-meta-data/docker-image-tag' --stdout)
       
-      echo "--- 部署信息 ---"
-      echo "镜像仓库: ${IMAGE_REPO}"
-      echo "镜像标签: ${IMAGE_TAG}"
+      echo "--- Deploying image ${IMAGE_TAG} ---"
+      
+      buildkite-agent secret get GHCR_TOKEN | docker login ghcr.io -u "${BUILDKITE_ORGANIZATION_SLUG}" --password-stdin
 
-      echo "--- 登录到 GHCR ---"
-      buildkite-agent secret get BUILDKITE_GHCR_TOKEN | docker login ghcr.io -u "${BUILDKITE_ORGANIZATION_SLUG}" --password-stdin
-
-      echo "--- 拉取新镜像 ---"
       docker pull "${IMAGE_REPO}:${IMAGE_TAG}"
-
-      echo "--- 停止并移除旧容器 ---"
       docker stop "${CONTAINER_NAME}" || true
       docker rm "${CONTAINER_NAME}" || true
-
-      echo "--- 启动新容器 ---"
-      docker run -d \
-        -p 8080:8080 \
-        --name "${CONTAINER_NAME}" \
-        --restart always \
-        "${IMAGE_REPO}:${IMAGE_TAG}"
+      docker run -d -p 8080:8080 --name "${CONTAINER_NAME}" --restart always "${IMAGE_REPO}:${IMAGE_TAG}"
       
-      echo "✅ 部署成功！"
+      echo "✅ Deployment successful!"
