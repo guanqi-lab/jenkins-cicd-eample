@@ -31,6 +31,5 @@ steps:
       echo "--- Building image: $${FULL_IMAGE_NAME} ---" && \
       docker build -t "$${FULL_IMAGE_NAME}" . && \
       echo "--- Deploying image ${IMAGE_TAG} ---" && \
-      docker ps -q --filter "name=${CONTAINER_NAME}" | xargs -r docker rm -f && \
-      docker run -d -p 8080:8080 --name "${CONTAINER_NAME}" --restart always "${IMAGE_REPO}:${IMAGE_TAG}" && \
+      docker run -d -p 38080:8080 --name "${CONTAINER_NAME}" --restart always "${IMAGE_REPO}:${IMAGE_TAG}" && \
       echo "✅ Deployment successful!"
