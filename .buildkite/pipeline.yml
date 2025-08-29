@@ -9,7 +9,7 @@ steps:
     if: build.pull_request.id == null
     # 这个命令会安全地从 Buildkite Secrets 获取令牌并登录 Docker
     command: |
-      buildkite-agent secret get GHCR_TOKEN | docker login ghcr.io -u "${BUILDKITE_ORGANIZATION_SLUG}" --password-stdin
+      buildkite-agent secret get BUILDKITE_GHCR_TOKEN | docker login ghcr.io -u "${BUILDKITE_ORGANIZATION_SLUG}" --password-stdin
 
   # --- 自动化 CI 步骤 ---
   - label: "📦 Build and Push Image"
