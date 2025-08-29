@@ -14,7 +14,7 @@ steps:
       buildkite-agent secret get GHCR_TOKEN | docker login ghcr.io -u "${BUILDKITE_ORGANIZATION_SLUG}" --password-stdin
 
   # 步骤 2: 构建和推送镜像
-  - label: "📦 Build and Push Image"
+  - label: "📦 Build and Deploy Image"
     key: "build"
     depends_on: "login"
     if: build.pull_request.id == null
@@ -30,15 +30,6 @@ steps:
       echo "Full Image Name: $${FULL_IMAGE_NAME}" && \
       echo "--- Building image: $${FULL_IMAGE_NAME} ---" && \
       docker build -t "$${FULL_IMAGE_NAME}" . && \
-      buildkite-agent meta-data set "image-tag" "$${IMAGE_TAG}"
-
-  # 步骤 3: 执行部署
-  - label: "🚀 Executing Deployment"
-    key: "execute-deployment"
-    depends_on: "build"
-    command: |
-      set -euo pipefail && \
-      IMAGE_TAG=$(buildkite-agent meta-data get "image-tag") && \
       echo "--- Deploying image ${IMAGE_TAG} ---" && \
       docker stop "${CONTAINER_NAME}" || true && \
       docker rm "${CONTAINER_NAME}" || true && \
